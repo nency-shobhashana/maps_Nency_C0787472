@@ -253,7 +253,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    // Set marker title with custom marker 
+    // Set marker title with custom marker
     private void addTitle(){
         IconGenerator iconGenerator = new IconGenerator(this);
         iconGenerator.setStyle(IconGenerator.STYLE_ORANGE);
