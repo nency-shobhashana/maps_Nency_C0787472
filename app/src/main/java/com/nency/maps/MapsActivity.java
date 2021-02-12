@@ -22,18 +22,24 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.maps.android.PolyUtil;
+import com.google.maps.android.SphericalUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -48,7 +54,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     Polygon shape;
     private static final int POLYGON_SIDES = 4;
     List<Marker> markers = new ArrayList<>();
-    List<PolylineOptions> mPolylines= new ArrayList();
+    Map<Marker, Circle> mcircles= new HashMap<>();
+
+    private boolean isMarkerDrag = false;
 
     List<Double> distancesFromMidPointsOfPolygonEdges = new ArrayList<>();
 
@@ -99,7 +107,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             @Override
             public void onMapLongClick(LatLng latLng) {
-                if (markers.size() == POLYGON_SIDES){
+                if(isMarkerDrag) return;
+
+                for (Marker marker : mcircles.keySet()) {
+                    Circle mcircle = mcircles.get(marker);
+                    if (SphericalUtil.computeDistanceBetween(mcircle.getCenter(), latLng) < mcircle.getRadius()){
+                        marker.remove();
+                        mcircle.remove();
+                        mcircles.remove(marker);
+                        markers.remove(marker);
+                        reloadShape();
+                        return;
+                    }
+                }
+
+                if (markers.size() >= POLYGON_SIDES){
                     clearMap();
                 }
                 if(latLng != null) {
@@ -137,6 +159,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+        mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
+            @Override
+            public void onMarkerDragStart(Marker marker) {
+                isMarkerDrag = true;
+                shape.remove();
+                markers.remove(marker);
+            }
+
+            @Override
+            public void onMarkerDrag(Marker marker) {
+
+            }
+
+            @Override
+            public void onMarkerDragEnd(Marker marker) {
+                isMarkerDrag = false;
+                setMarker(marker.getPosition());
+            }
+        });
+
         // Total distance of quadrilateral(A-B-C-D)
         mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
             @Override
@@ -144,6 +186,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 diplayTotalDistance();
             }
         });
+
     }
 
     // Calculate total distance and display in toast
@@ -168,6 +211,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .position(latLng)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE));
         Marker marker = mMap.addMarker(options);
+        marker.setDraggable(true);
+
+        CircleOptions circleOption = new CircleOptions().center(latLng).radius(100).strokeWidth(0);
+        mcircles.put(marker, mMap.addCircle(circleOption));
 
         // Set marker title
         int size = markers.size();
@@ -175,14 +222,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         marker.setTitle(title);
         marker.showInfoWindow();
 
+        adjustPolygonWithRespectTo(marker);
+        reloadShape();
+    }
+
+    private void reloadShape(){
         // remove marker
         if (shape != null) {
             shape.remove();
             shape = null;
         }
-        adjustPolygonWithRespectTo(marker);
+
         PolygonOptions polygonOptions = null;
-        mPolylines.clear();
+
         for (int i = 0; i < markers.size(); i++) {
             if (i == 0) {
                 polygonOptions = new PolygonOptions().add(markers.get(0).getPosition());
@@ -196,7 +248,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         polygonOptions.fillColor(0x5900FF00);
         shape = mMap.addPolygon(polygonOptions);
         shape.setClickable(true);
-
     }
 
     private void adjustPolygonWithRespectTo(Marker marker) {
@@ -291,6 +342,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             marker.remove();
 
         markers.clear();
+        for (Circle mcircle : mcircles.values()) {
+            mcircle.remove();
+        }
+        mcircles.clear();
         shape.remove();
         shape = null;
     }
