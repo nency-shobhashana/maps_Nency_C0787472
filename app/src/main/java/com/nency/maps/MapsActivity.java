@@ -32,6 +32,7 @@ import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.maps.android.PolyUtil;
 import com.google.maps.android.SphericalUtil;
+import com.google.maps.android.ui.IconGenerator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener {
 
     private GoogleMap mMap;
 
@@ -60,8 +61,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     List<Double> distancesFromMidPointsOfPolygonEdges = new ArrayList<>();
 
-
-
     // location manager and location listener
     LocationManager locationManager;
     LocationListener locationListener;
@@ -76,15 +75,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
+    // on map ready set all listener
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
@@ -103,61 +94,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             startUpdateLocation();
 
         // apply long press gesture
-        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+        mMap.setOnMapLongClickListener(this);
 
-            @Override
-            public void onMapLongClick(LatLng latLng) {
-                if(isMarkerDrag) return;
-
-                for (Marker marker : mcircles.keySet()) {
-                    Circle mcircle = mcircles.get(marker);
-                    if (SphericalUtil.computeDistanceBetween(mcircle.getCenter(), latLng) < mcircle.getRadius()){
-                        marker.remove();
-                        mcircle.remove();
-                        mcircles.remove(marker);
-                        markers.remove(marker);
-                        reloadShape();
-                        return;
-                    }
-                }
-
-                if (markers.size() >= POLYGON_SIDES){
-                    clearMap();
-                }
-                if(latLng != null) {
-                    setMarker(latLng);
-                }
-            }
-        });
-
-        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
-            @Override
-            public boolean onMarkerClick(Marker marker) {
-
-                // Show address in Toast on click of markers
-                Geocoder geocoder;
-                List<Address> addresses;
-                LatLng latLng = marker.getPosition();
-                geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
-                try {
-                    addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
-                    Address address = addresses.get(0);
-                    Log.i(TAG, "address:" + address.toString());
-                    Toast.makeText(MapsActivity.this, address.getAddressLine(0),Toast.LENGTH_LONG).show();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-                if(userLocation != null){
-                    Location location = new Location(LocationManager.GPS_PROVIDER);
-                    location.setLatitude( latLng.latitude);
-                    location.setLongitude(latLng.longitude);
-                    float distance = userLocation.distanceTo(location);
-                    marker.setSnippet("Distance : " + distance/1000 + "km");
-                }
-                return false;
-            }
-        });
+        // apply marker click listener
+        mMap.setOnMarkerClickListener(this);
 
         mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
             @Override
@@ -175,6 +115,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onMarkerDragEnd(Marker marker) {
                 isMarkerDrag = false;
+                marker.remove();
                 setMarker(marker.getPosition());
             }
         });
@@ -186,7 +127,68 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 diplayTotalDistance();
             }
         });
+    }
 
+    // on map long click
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        // if marker is dragging then return
+        if(isMarkerDrag) return;
+
+        // if long press near city (invisible circle) then remove marker
+        for (Marker marker : mcircles.keySet()) {
+            Circle mcircle = mcircles.get(marker);
+            if (SphericalUtil.computeDistanceBetween(mcircle.getCenter(), latLng) < mcircle.getRadius()){
+                marker.remove();
+                mcircle.remove();
+                mcircles.remove(marker);
+                markers.remove(marker);
+                reloadShape();
+                addTitle();
+                return;
+            }
+        }
+
+        // if add marker more then POLYGON_SIDES clear map
+        if (markers.size() >= POLYGON_SIDES){
+            clearMap();
+        }
+        // add marker
+        if(latLng != null) {
+            setMarker(latLng);
+        }
+    }
+
+    // on marker click display distance on snipet and toast address
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        // if marker is my location then do nothing
+        if("myLocation".equals(marker.getTag())){
+            return false;
+        }
+        // Show address in Toast on click of markers
+        Geocoder geocoder;
+        List<Address> addresses;
+        LatLng latLng = marker.getPosition();
+        geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
+        try {
+            addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
+            Address address = addresses.get(0);
+            Log.i(TAG, "address:" + address.toString());
+            Toast.makeText(MapsActivity.this, address.getAddressLine(0),Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // add snippet with calculate latest distance with user location
+        if(userLocation != null){
+            Location location = new Location(LocationManager.GPS_PROVIDER);
+            location.setLatitude( latLng.latitude);
+            location.setLongitude(latLng.longitude);
+            float distance = userLocation.distanceTo(location);
+            marker.setSnippet("Distance : " + distance/1000 + "km");
+        }
+        return false;
     }
 
     // Calculate total distance and display in toast
@@ -216,16 +218,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         CircleOptions circleOption = new CircleOptions().center(latLng).radius(100).strokeWidth(0);
         mcircles.put(marker, mMap.addCircle(circleOption));
 
-        // Set marker title
-        int size = markers.size();
-        String title = size == 0 ? "A" : size == 1 ? "B" : size == 2 ? "C" : "D";
-        marker.setTitle(title);
-        marker.showInfoWindow();
-
+        // for quadrilateral
         adjustPolygonWithRespectTo(marker);
         reloadShape();
+        addTitle();
     }
 
+    // reload shape based on markers list
     private void reloadShape(){
         // remove marker
         if (shape != null) {
@@ -235,6 +234,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         PolygonOptions polygonOptions = null;
 
+        // adding points in polygon
         for (int i = 0; i < markers.size(); i++) {
             if (i == 0) {
                 polygonOptions = new PolygonOptions().add(markers.get(0).getPosition());
@@ -243,13 +243,31 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
 
         }
-        polygonOptions.strokeColor(Color.RED);
-        polygonOptions.strokeWidth(5f);
-        polygonOptions.fillColor(0x5900FF00);
-        shape = mMap.addPolygon(polygonOptions);
-        shape.setClickable(true);
+        // set color, width of stroke
+        if (polygonOptions != null) {
+            polygonOptions.strokeColor(Color.RED);
+            polygonOptions.strokeWidth(5f);
+            polygonOptions.fillColor(0x5900FF00);
+            shape = mMap.addPolygon(polygonOptions);
+            shape.setClickable(true);
+        }
     }
 
+    // Set marker title with custom marker 
+    private void addTitle(){
+        IconGenerator iconGenerator = new IconGenerator(this);
+        iconGenerator.setStyle(IconGenerator.STYLE_ORANGE);
+        for (int i = 0; i < markers.size(); i++) {
+            String title = i == 0 ? "A" : i == 1 ? "B" : i == 2 ? "C" : "D";
+            Marker marker = markers.get(i);
+            marker.setTitle(title);
+
+           marker.setIcon(BitmapDescriptorFactory.fromBitmap(iconGenerator.makeIcon(title)));
+        }
+
+    }
+
+    // quadrilateral - adjusting point of polygon
     private void adjustPolygonWithRespectTo(Marker marker) {
         double minDistance = 0;
 
@@ -336,7 +354,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return new LatLng(latitude / n, longitude / n);
     }
 
-    // To remove markers from map
+    // To remove markers and polygon from map
     private void clearMap() {
         for (Marker marker : markers)
             marker.remove();
@@ -346,23 +364,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mcircle.remove();
         }
         mcircles.clear();
-        shape.remove();
-        shape = null;
+        if(shape != null) {
+            shape.remove();
+            shape = null;
+        }
     }
 
+    // add user location update listener
     private void startUpdateLocation() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 50, locationListener);
     }
 
 
+    // ask for location permission
     private void requestLocationPermission() {
         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_CODE);
     }
 
 
+    // check location permission is there
     private boolean hasLocationPermission() {
         return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
@@ -377,6 +400,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET))
                 .snippet("User Location");
         homeMarker = mMap.addMarker(options);
+        homeMarker.setTag("myLocation");
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, 15));
     }
 
