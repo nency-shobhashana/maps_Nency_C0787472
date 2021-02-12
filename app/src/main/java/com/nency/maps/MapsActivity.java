@@ -27,6 +27,7 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     Polygon shape;
     private static final int POLYGON_SIDES = 4;
     List<Marker> markers = new ArrayList<>();
+    List<PolylineOptions> mPolylines= new ArrayList();
 
     List<Double> distancesFromMidPointsOfPolygonEdges = new ArrayList<>();
 
@@ -134,6 +136,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 return false;
             }
         });
+
+        // Total distance of quadrilateral(A-B-C-D)
+        mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
+            @Override
+            public void onPolygonClick(Polygon polygon) {
+                diplayTotalDistance();
+            }
+        });
+    }
+
+    // Calculate total distance and display in toast
+    private void diplayTotalDistance(){
+        float distance = 0;
+        Location prvLocation = null;
+        for (int i = 0; i < markers.size(); i++) {
+            Location location = new Location(LocationManager.GPS_PROVIDER);
+            location.setLongitude(markers.get(i).getPosition().longitude);
+            location.setLatitude(markers.get(i).getPosition().latitude);
+            if(prvLocation != null){
+                distance += prvLocation.distanceTo(location);
+            }
+            prvLocation = location;
+        }
+        Toast.makeText(this, "Total Distance : " + distance / 1000 + " kms", Toast.LENGTH_LONG).show();
     }
 
     // Set marker for polygon
@@ -142,6 +168,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .position(latLng)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE));
         Marker marker = mMap.addMarker(options);
+
+        // Set marker title
         int size = markers.size();
         String title = size == 0 ? "A" : size == 1 ? "B" : size == 2 ? "C" : "D";
         marker.setTitle(title);
@@ -154,17 +182,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         adjustPolygonWithRespectTo(marker);
         PolygonOptions polygonOptions = null;
+        mPolylines.clear();
         for (int i = 0; i < markers.size(); i++) {
             if (i == 0) {
                 polygonOptions = new PolygonOptions().add(markers.get(0).getPosition());
             } else {
                 polygonOptions.add(markers.get(i).getPosition());
             }
+
         }
         polygonOptions.strokeColor(Color.RED);
         polygonOptions.strokeWidth(5f);
-        polygonOptions.fillColor(0x3300FF00);
+        polygonOptions.fillColor(0x5900FF00);
         shape = mMap.addPolygon(polygonOptions);
+        shape.setClickable(true);
 
     }
 
