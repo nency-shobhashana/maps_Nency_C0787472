@@ -225,7 +225,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Marker marker = mMap.addMarker(options);
         marker.setDraggable(true);
 
-        CircleOptions circleOption = new CircleOptions().center(latLng).radius(100).strokeWidth(0);
+        CircleOptions circleOption = new CircleOptions().center(latLng).radius(4000).strokeWidth(0);
         mcircles.put(marker, mMap.addCircle(circleOption));
 
         // for quadrilateral
@@ -256,12 +256,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // set color, width of stroke
         if (polygonOptions != null) {
             polygonOptions.strokeColor(Color.RED);
-            polygonOptions.strokeWidth(5f);
+            polygonOptions.strokeWidth(7f);
             polygonOptions.fillColor(0x5900FF00);
             shape = mMap.addPolygon(polygonOptions);
             shape.setClickable(true);
         }
 
+        // added invisble polyline to get click events
         for (Polyline mPolyline : mPolylines) {
             mPolyline.remove();
         }
@@ -434,7 +435,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .snippet("User Location");
         homeMarker = mMap.addMarker(options);
         homeMarker.setTag("myLocation");
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, 15));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, 9));
     }
 
 
