@@ -29,6 +29,7 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
+import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.maps.android.PolyUtil;
 import com.google.maps.android.SphericalUtil;
@@ -53,6 +54,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Location userLocation;
 
     Polygon shape;
+    private List<Polyline> mPolylines = new ArrayList<>();
     private static final int POLYGON_SIDES = 4;
     List<Marker> markers = new ArrayList<>();
     Map<Marker, Circle> mcircles= new HashMap<>();
@@ -127,6 +129,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 diplayTotalDistance();
             }
         });
+
+        mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
+            @Override
+            public void onPolylineClick(Polyline polyline) {
+                double distance = SphericalUtil.computeDistanceBetween(polyline.getPoints().get(0), polyline.getPoints().get(1));
+                Toast.makeText(MapsActivity.this, String.format("Distance between to points : %.2f kms", distance / 1000) , Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     // on map long click
@@ -186,7 +196,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             location.setLatitude( latLng.latitude);
             location.setLongitude(latLng.longitude);
             float distance = userLocation.distanceTo(location);
-            marker.setSnippet("Distance : " + distance/1000 + "km");
+            marker.setSnippet(String.format("Distance from user :  %.2f kms", distance/1000 ));
         }
         return false;
     }
@@ -204,7 +214,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
             prvLocation = location;
         }
-        Toast.makeText(this, "Total Distance : " + distance / 1000 + " kms", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, String.format("Total Distance : %.2f kms", distance / 1000), Toast.LENGTH_LONG).show();
     }
 
     // Set marker for polygon
@@ -250,6 +260,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             polygonOptions.fillColor(0x5900FF00);
             shape = mMap.addPolygon(polygonOptions);
             shape.setClickable(true);
+        }
+
+        for (Polyline mPolyline : mPolylines) {
+            mPolyline.remove();
+        }
+        mPolylines.clear();
+        for (int i = 0; i < markers.size() - 1; i++) {
+            PolylineOptions polylineOption = new PolylineOptions()
+                    .color(Color.TRANSPARENT)
+                    .width(10)
+                    .zIndex(5)
+                    .clickable(true)
+                    .add(markers.get(i).getPosition(), markers.get(i + 1).getPosition());
+            mPolylines.add(mMap.addPolyline(polylineOption));
+        }
+        if(markers.size() > 0) {
+            PolylineOptions polylineOption = new PolylineOptions()
+                    .color(Color.TRANSPARENT)
+                    .width(10)
+                    .zIndex(5)
+                    .clickable(true)
+                    .add(markers.get(0).getPosition(), markers.get(markers.size() - 1).getPosition());
+            mPolylines.add(mMap.addPolyline(polylineOption));
         }
     }
 
